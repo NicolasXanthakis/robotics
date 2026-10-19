@@ -1,0 +1,147 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro"
+       name="robot_hand">
+
+  <!-- Materials -->
+  <material name="blue">
+    <color rgba="0.2 0.4 0.9 1"/>
+  </material>
+
+  <material name="gray">
+    <color rgba="0.7 0.7 0.7 1"/>
+  </material>
+
+  <!-- Palm -->
+  <link name="palm">
+    <visual>
+      <geometry>
+        <box size="0.09 0.02 0.11"/>
+      </geometry>
+      <material name="blue"/>
+    </visual>
+  </link>
+
+  <!-- Reusable three-segment finger -->
+  <xacro:macro name="finger"
+               params="name x z l1 l2 l3 angle:=0">
+
+    <!-- Proximal segment -->
+    <link name="${name}_proximal">
+      <visual>
+        <origin xyz="0 0 ${l1/2}"/>
+        <geometry>
+          <box size="0.018 0.018 ${l1}"/>
+        </geometry>
+        <material name="gray"/>
+      </visual>
+    </link>
+
+    <joint name="${name}_mcp" type="revolute">
+      <parent link="palm"/>
+      <child link="${name}_proximal"/>
+      <origin xyz="${x} 0 ${z}" rpy="0 ${angle} 0"/>
+      <axis xyz="1 0 0"/>
+      <limit lower="0" upper="1.57"
+             effort="1" velocity="1"/>
+    </joint>
+
+    <!-- Middle segment -->
+    <link name="${name}_middle">
+      <visual>
+        <origin xyz="0 0 ${l2/2}"/>
+        <geometry>
+          <box size="0.016 0.016 ${l2}"/>
+        </geometry>
+        <material name="gray"/>
+      </visual>
+    </link>
+
+    <joint name="${name}_pip" type="revolute">
+      <parent link="${name}_proximal"/>
+      <child link="${name}_middle"/>
+      <origin xyz="0 0 ${l1}"/>
+      <axis xyz="1 0 0"/>
+      <limit lower="0" upper="1.75"
+             effort="1" velocity="1"/>
+    </joint>
+
+    <!-- Distal segment -->
+    <link name="${name}_distal">
+      <visual>
+        <origin xyz="0 0 ${l3/2}"/>
+        <geometry>
+          <box size="0.014 0.014 ${l3}"/>
+        </geometry>
+        <material name="gray"/>
+      </visual>
+    </link>
+
+    <joint name="${name}_dip" type="revolute">
+      <parent link="${name}_middle"/>
+      <child link="${name}_distal"/>
+      <origin xyz="0 0 ${l2}"/>
+      <axis xyz="1 0 0"/>
+      <limit lower="0" upper="1.4"
+             effort="1" velocity="1"/>
+    </joint>
+
+  </xacro:macro>
+
+  <!-- Four fingers -->
+  <xacro:finger name="index"
+                x="0.025" z="0.055"
+                l1="0.045" l2="0.025" l3="0.020"/>
+
+  <xacro:finger name="middle"
+                x="0.008" z="0.055"
+                l1="0.050" l2="0.030" l3="0.022"/>
+
+  <xacro:finger name="ring"
+                x="-0.012" z="0.055"
+                l1="0.045" l2="0.027" l3="0.019"/>
+
+  <xacro:finger name="pinky"
+                x="-0.032" z="0.055"
+                l1="0.035" l2="0.020" l3="0.015"/>
+
+  <!-- Simplified two-segment thumb -->
+  <link name="thumb_proximal">
+    <visual>
+      <origin xyz="0 0 0.023"/>
+      <geometry>
+        <box size="0.020 0.020 0.046"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="thumb_base" type="revolute">
+    <parent link="palm"/>
+    <child link="thumb_proximal"/>
+    <origin xyz="0.045 0 0.005"
+            rpy="0 0.9 0"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.57"
+           effort="1" velocity="1"/>
+  </joint>
+
+  <link name="thumb_distal">
+    <visual>
+      <origin xyz="0 0 0.025"/>
+      <geometry>
+        <box size="0.018 0.018 0.050"/>
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="thumb_ip" type="revolute">
+    <parent link="thumb_proximal"/>
+    <child link="thumb_distal"/>
+    <origin xyz="0 0 0.046"/>
+    <axis xyz="1 0 0"/>
+    <limit lower="0" upper="1.4"
+           effort="1" velocity="1"/>
+  </joint>
+
+</robot>
