@@ -3,10 +3,9 @@
 import math
 
 from ament_index_python.packages import get_package_share_path
+from hand_control.test_joint_publisher import load_joints, sample_positions
 import pytest
 import xacro
-
-from hand_control.test_joint_publisher import load_joints, sample_positions
 
 
 def test_full_range_and_speed():

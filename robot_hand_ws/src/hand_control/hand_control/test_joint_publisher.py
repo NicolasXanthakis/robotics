@@ -1,26 +1,13 @@
 """Move every movable hand joint smoothly between its URDF limits."""
 
 import math
-import xml.etree.ElementTree as ET
 
 from ament_index_python.packages import get_package_share_path
+from hand_control.model import load_joints
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 import xacro
-
-
-def load_joints(description):
-    """Read joint names, position bounds and velocity limits from expanded URDF."""
-    root = ET.fromstring(description)
-    return [
-        (joint.attrib['name'],
-         float(joint.find('limit').attrib['lower']),
-         float(joint.find('limit').attrib['upper']),
-         float(joint.find('limit').attrib['velocity']))
-        for joint in root.findall('joint')
-        if joint.attrib['type'] == 'revolute'
-    ]
 
 
 def sample_positions(joints, elapsed, period):

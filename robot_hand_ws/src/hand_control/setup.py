@@ -23,6 +23,7 @@ setup(
     extras_require={'test': ['pytest']},
     entry_points={
         'console_scripts': [
+            'webcam_receiver = hand_control.webcam_receiver:main',
             'test_joint_publisher = hand_control.test_joint_publisher:main',
         ],
     },

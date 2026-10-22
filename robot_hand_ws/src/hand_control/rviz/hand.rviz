@@ -3,6 +3,9 @@ Panels:
     Name: Displays
 Visualization Manager:
   Class: ""
+  Enabled: true
+  Name: root
+  Value: true
   Global Options:
     Fixed Frame: palm
     Background Color: 48; 48; 48
@@ -10,6 +13,7 @@ Visualization Manager:
     - Class: rviz_default_plugins/RobotModel
       Name: Hand
       Enabled: true
+      Value: true
       Description Source: Topic
       Description Topic:
         Value: /robot_description
@@ -18,9 +22,17 @@ Visualization Manager:
       Visual Enabled: true
       Collision Enabled: false
       Alpha: 1
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Near Clip Distance: 0.001
+      Target Frame: <Fixed Frame>
       Distance: 0.45
       Pitch: 0.4
       Yaw: 1.2
