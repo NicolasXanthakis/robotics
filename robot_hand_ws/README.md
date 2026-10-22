@@ -1,5 +1,9 @@
 # Robotic hand visualization
 
+<p align="center">
+  <img src="../images/hand_tracking1.png" alt="Robotic hand controlled using MediaPipe and ROS 2" width="400">
+</p>
+
 Build and run from this workspace:
 
 ```bash

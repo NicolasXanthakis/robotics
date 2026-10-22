@@ -18,7 +18,7 @@ A simulated robotic arm controlled through human movements captured by a webcam.
 
 A five-finger robotic hand controlled through real-time hand tracking using MediaPipe.
 
-![Robotic hand tracking in RViz](images/hand_tracking1.png)
+<img src="images/hand_tracking1.png" alt="Robotic hand tracking in RViz" width="400">
 
 ## Future Development
 
