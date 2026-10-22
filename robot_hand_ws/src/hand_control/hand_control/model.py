@@ -9,6 +9,8 @@ JOINT_NAMES = tuple(
 ) + ('thumb_base', 'thumb_ip')
 
 
+SPREAD_NAMES = tuple(f'{finger}_spread' for finger in ('index', 'middle', 'ring', 'pinky')) + ('thumb_spread', 'thumb_opposition')
+
 def load_joints(description):
     """Read joint names, position bounds and velocity limits from expanded URDF."""
     root = ET.fromstring(description)

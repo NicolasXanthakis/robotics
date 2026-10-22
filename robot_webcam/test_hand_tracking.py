@@ -149,5 +149,49 @@ class NetworkTests(unittest.TestCase):
         self.assertFalse(sender.worker.is_alive())
 
 
+class OpenPoseCorrectionTests(unittest.TestCase):
+    def test_open_pose_applies_without_fist_and_preserves_closure(self):
+        opened = [12., 22., 18.]*4 + [10., 15.]
+        self.assertEqual(map_angles(opened, open_pose=opened), [0.]*14)
+        self.assertEqual(map_angles([v+2 for v in opened], open_pose=opened), [0.]*14)
+        np.testing.assert_allclose(map_angles(LIMITS, open_pose=opened), LIMITS)
+        halfway = [(lo+3+hi)/2 for lo, hi in zip(opened, LIMITS)]
+        np.testing.assert_allclose(map_angles(halfway, open_pose=opened), np.array(LIMITS)/2)
+        values = [map_angles([x]*14, open_pose=opened) for x in range(101)]
+        self.assertTrue(all(a <= b for first, second in zip(values, values[1:])
+                            for a, b in zip(first, second)))
+        for invalid in ([0]*13, [float('nan')]*14):
+            with self.assertRaises(ValueError):
+                map_angles(opened, open_pose=invalid)
+
+
+class VisibleExtensionTests(unittest.TestCase):
+    def test_straight_image_corrects_depth_but_not_other_joints(self):
+        image = synthetic_hand()[:, :2]*1000
+        world = synthetic_hand()
+        for mcp in (5, 9, 13, 17):
+            world[mcp+2, 2] = .015
+        original = estimate_flexion(world)
+        corrected = estimate_flexion(world, image)
+        for i in range(4):
+            self.assertGreater(original[3*i+1], 20)
+            self.assertAlmostEqual(corrected[3*i+1], 0, places=6)
+            self.assertAlmostEqual(corrected[3*i+2], 0, places=6)
+            self.assertEqual(corrected[3*i], original[3*i])
+        self.assertEqual(corrected[-2:], original[-2:])
+        np.testing.assert_allclose(estimate_flexion(world, image*[-2, 2]+[50, 10]), corrected, atol=1e-8)
+
+    def test_bent_and_foreshortened_fingers_keep_world_estimate(self):
+        world = synthetic_hand(30, 50, 35)
+        image = synthetic_hand()[:, :2]*1000
+        for mcp in (5, 9, 13, 17):
+            image[mcp+1:mcp+4] = image[mcp]+.3*(image[mcp+1:mcp+4]-image[mcp])
+        np.testing.assert_allclose(estimate_flexion(world, image), estimate_flexion(world))
+        image = synthetic_hand()[:, :2]*1000
+        for mcp in (5, 9, 13, 17):
+            image[mcp+2] += [25, -20]
+        np.testing.assert_allclose(estimate_flexion(world, image), estimate_flexion(world))
+
+
 if __name__ == '__main__':
     unittest.main()

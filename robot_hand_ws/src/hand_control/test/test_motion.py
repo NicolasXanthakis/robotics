@@ -16,9 +16,9 @@ def test_full_range_and_speed():
         f'{finger}_{joint}'
         for finger in ('index', 'middle', 'ring', 'pinky')
         for joint in ('mcp', 'pip', 'dip')
-    } | {'thumb_base', 'thumb_ip'}
+    } | {'thumb_base', 'thumb_ip', 'thumb_spread', 'thumb_opposition'} | {f'{f}_spread' for f in ('index', 'middle', 'ring', 'pinky')}
     assert {joint[0] for joint in joints} == expected
-    assert len(joints) == 14
+    assert len(joints) == 20
     assert sample_positions(joints, 0.0, 8.0) == pytest.approx([j[1] for j in joints])
     assert sample_positions(joints, 4.0, 8.0) == pytest.approx([j[2] for j in joints])
     assert sample_positions(joints, 8.0, 8.0) == pytest.approx([j[1] for j in joints])

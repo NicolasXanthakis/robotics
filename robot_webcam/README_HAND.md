@@ -169,3 +169,171 @@ request approval first, then explicitly download from the official source.
   consistently within each WSL launch/inspection terminal; both projects use
   `/joint_states` and `/robot_description`. Port separation alone does not
   separate ROS topics. The original arm sender remains unchanged.
+
+## Wrist orientation (optional)
+
+The wrist mode adds orientation to the existing finger tracking. Build the hand
+workspace as above, then use this receiver launch (stop other hand receivers):
+
+```bash
+ros2 launch hand_control wrist_visualize.launch.py rviz:=false
+```
+
+This command is headless. When ready for visual inspection, use `rviz:=true`.
+The wrist RViz configuration uses `hand_base` as its fixed frame.
+On Windows, start the existing sender with the additional flag:
+
+```powershell
+.\.venv\Scripts\python.exe .\hand_tracking.py --wrist
+```
+
+Hold a steady tracked hand and press **N** in the webcam preview, or click
+**Set wrist neutral (N)**, to capture a neutral wrist pose. Uppercase and
+lowercase keys both work; the preview and console report capture success.
+Press **X** to clear neutral and restore camera-relative orientation. These
+controls are independent of O/C/R finger calibration. Neutral is cleared when
+the selected handedness changes and retained across temporary tracking loss.
+The preview reports wrist acquisition, palm/back/edge facing, and neutral mode.
+Three stable samples are required after loss or an abrupt orientation jump;
+fingers can continue updating while wrist geometry is invalid.
+
+Wrist mode sends newline-delimited version-2 JSON containing 14 finger degrees,
+a sequence number, handedness, and an optional normalized xyzw quaternion.
+The wrist receiver also accepts legacy CSV, which updates fingers and holds
+wrist orientation. The original finger-only receiver requires CSV: omit
+`--wrist` when using it. Do not run both receivers on port 8766.
+
+The quaternion maps the palm model into `hand_base`; camera right/down/away
+maps to base forward/left/up through a fixed proper rotation. This is a
+coordinate convention, not measured camera calibration. Model +Z points along
+the fingers and -Y toward the palm. Left hands map into the same right-hand
+robot model. Neutral mode applies the spatial rotation from captured neutral
+to current orientation in base axes. There is no wrist position tracking.
+MediaPipe estimates depth from one camera, so occlusion and handedness errors
+still require a live visual check.
+
+The receiver publishes one dynamic `hand_base -> palm` transform, pivoting
+55 mm below the existing palm center. Quaternion smoothing defaults to a
+0.15-second time constant and a 3 rad/s speed limit. It holds orientation on
+invalid frames, disconnect, or 0.5 seconds without fresh orientation; fingers
+retain their independent one-second timeout. Tuning launch parameters are
+`wrist_tau`, `wrist_max_speed`, and `wrist_timeout`.
+
+Additional camera-free verification from the sourced ROS workspace:
+
+```bash
+python3 -m pytest -q src/hand_control/test
+python3 src/hand_control/test/tcp_smoke.py --wrist
+```
+
+The smoke test explicitly disables RViz and verifies joint states, wrist TF,
+malformed input recovery, holds, and reconnect. Stop other hand receivers first.
+
+## Finger spread and palm model
+
+Wrist mode (`--wrist`) now also tracks four sideways MCP rotations: index,
+middle, ring, and pinky. Bring your fingers together, then fan them apart;
+the preview shows signed spread degrees. These measurements use proximal
+finger directions projected into the palm plane, independently of curl and
+wrist neutral capture. Left hands are retargeted to the same right-hand model.
+When a finger is too curled to measure spread reliably, all four spread
+angles hold their last targets until the palm-plane projection is usable again.
+
+The model now has **18 joints**: the original 14 flexion joints followed by
+`index_spread,middle_spread,ring_spread,pinky_spread` in joint-state messages.
+The original 14-value CSV protocol is preserved and keeps spread at zero.
+Version-2 JSON adds optional `finger_spread_deg` (four signed finite degrees in
+that order). Old JSON without this field continues to work and holds spread.
+Spread is clamped to ±0.45 radians (about ±26 degrees), smoothed, and limited
+to 1 rad/s. Disconnects and stale frames hold the current published pose.
+The sinusoidal demo sweeps all 18 joints.
+
+The palm is a single blue, tapered solid with flat faces and bevelled edges,
+wider at the knuckles and narrower at the wrist. Its generator is included under
+`robot_hand_description/meshes/generate_palm.py`. The thumb attaches lower on the palm and uses 35 mm and 26 mm segments.
+This is a simplified visual model, not an anatomical scan. Thumb opposition, thumb sideways movement,
+finger twisting, and palm cupping remain outside this model.
+
+### Thumb sideways tracking
+
+The current model has **19 joints**, adding `thumb_spread` after the four
+finger spread joints. In wrist mode, the thumb metacarpal (landmarks 1→2)
+is projected into the palm plane to measure sideways opening independently
+of the two thumb bends. The model's resting opening is 0.9 radians; the
+additional joint moves ±0.8 radians with smoothing and a 1 rad/s speed limit.
+The preview reports `Thumb sideways` in degrees. Wrist neutral capture does
+not change this anatomical angle.
+
+Version-2 JSON adds optional `thumb_spread_deg`. Missing/null values hold the
+last sideways target; legacy CSV resets all spread targets to zero.
+A thumb pointing nearly perpendicular to the palm plane holds its sideways
+target because that projection is unreliable. This adds palm-plane thumb
+opening/closing; full thumb opposition and palm cupping remain unmodeled.
+
+### Responsiveness
+
+The wrist visualization launch now defaults to `alpha:=0.55` for fingers and
+spread, `wrist_tau:=0.06`, `wrist_max_speed:=6.0`, and
+`motion_speed_scale:=2.5`. The last parameter scales URDF velocity bounds for
+this visualization only; it does not modify the URDF or command hardware.
+The original finger-only receiver still defaults to alpha 0.2 and speed scale
+1.0. Sender and ROS publication remain at 20 Hz. Less filtering makes camera
+jitter more visible. Camera inference and capture add their own latency.
+
+To return to the earlier wrist visualization response:
+
+```bash
+ros2 launch hand_control wrist_visualize.launch.py alpha:=0.2 motion_speed_scale:=1.0 wrist_tau:=0.15 wrist_max_speed:=3.0
+```
+
+### Moving thumb base (CMC opposition)
+
+The latest model has **20 movable joints**. `thumb_opposition` rotates the blue
+thenar section and all downstream thumb joints relative to the main palm.
+At zero, the pad and thumb retain their existing resting positions. Positive
+rotation about the local negative Z axis moves the assembly toward the palmar
+side and the center of the palm. Its range is 0–1.2 radians, with the same
+visual smoothing and speed scaling as other auxiliary joints.
+
+In wrist mode, landmarks 1→2 supply the thumb metacarpal direction. Palm-plane
+opening drives sideways spread; elevation toward the palm drives opposition.
+These angles are decomposed separately, so inward movement does not itself
+close the sideways joint. The preview shows `Thumb inward` in degrees.
+Wrist neutral capture and finger calibration do not change this measurement.
+
+Optional v2 field `thumb_opposition_deg` carries the angle. Missing/null holds
+the previous target; legacy CSV returns it to zero. A degenerate metacarpal
+projection is held. This is a single-hinge approximation of thumb opposition,
+not the full coupled rotations of the anatomical saddle joint. Camera depth
+errors may cause cross-talk and require adjustment after live testing.
+
+### Straight-finger correction with O
+
+Hold your selected hand open with fingers comfortably straight for one second,
+then focus the webcam preview and press **O**. The median tracked open pose is
+now applied immediately: the panel shows `OPEN-POSE CORRECTION`. This removes
+per-joint bend offsets without requiring a fist capture. A three-degree raw
+angle tolerance near extension suppresses small residual bends; the remaining
+range is rescaled so full closure stays available. No automatic calibration
+is performed while you gesture.
+
+Optional **C** still captures a fist and activates/saves the two-pose range
+calibration. **R** clears both corrections and restores defaults. Open-only
+correction is session-local and applies only to the same handedness captured
+with O. Wrist neutral N and the sideways/opposition measurements are unchanged.
+If errors vary strongly with viewing angle, open calibration cannot correct
+all camera depth/occlusion errors; keep the hand well lit and visible.
+
+### Visible straight-finger check
+
+Middle/tip curl now also uses the image landmarks when a finger is visibly
+long and nearly straight. Confidence blends continuously based on projected
+length relative to the palm, chain straightness, and both image bend angles.
+At high confidence, small image bends (up to five degrees) map to extension,
+reducing false curl caused by inferred world-depth bends. Short/foreshortened,
+collapsed, or visibly bent chains keep the 3D estimate. Pixel coordinates
+preserve the image aspect ratio. Knuckle curl and thumb angles are unchanged.
+
+This is a conservative visual heuristic, not measured depth: unusual poses
+can still be ambiguous. Try the automatic correction before recapturing O;
+open-pose correction remains available for residual per-joint offsets.

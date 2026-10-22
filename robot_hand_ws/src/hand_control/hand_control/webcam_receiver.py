@@ -6,7 +6,7 @@ import threading
 import time
 
 from ament_index_python.packages import get_package_share_path
-from hand_control.model import JOINT_NAMES, load_joints
+from hand_control.model import JOINT_NAMES, SPREAD_NAMES, load_joints
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -64,13 +64,23 @@ class WebcamReceiver(Node):
         default_model = str(
             get_package_share_path('robot_hand_description') / 'urdf/hand.urdf.xacro')
         for name, value in [('model', default_model), ('host', '127.0.0.1'),
-                            ('port', 8766), ('alpha', 0.2), ('stale_timeout', 1.0)]:
+                            ('port', 8766), ('motion_speed_scale', 1.0), ('alpha', 0.2), ('stale_timeout', 1.0)]:
             self.declare_parameter(name, value)
         metadata = load_joints(xacro.process_file(self.get_parameter('model').value).toxml())
         by_name = {joint[0]: joint for joint in metadata}
-        if set(by_name) != set(JOINT_NAMES):
-            raise ValueError('Model must contain exactly the 14 expected hand joints')
+        if set(by_name) != set(JOINT_NAMES + SPREAD_NAMES):
+            raise ValueError('Model must contain the 14 flexion and six auxiliary thumb/spread joints')
         self.joints = [by_name[name] for name in JOINT_NAMES]
+        self.spread_joints = [by_name[name] for name in SPREAD_NAMES]
+        self.spread_positions = [0.0]*len(SPREAD_NAMES)
+        self.spread_targets = [0.0]*len(SPREAD_NAMES)
+        speed_scale = float(self.get_parameter('motion_speed_scale').value)
+        if not math.isfinite(speed_scale) or speed_scale <= 0:
+            raise ValueError('motion_speed_scale must be positive and finite')
+        # Visualization response only; this node does not command hardware.
+        self.motion_joints = [(n, lo, hi, v*speed_scale) for n, lo, hi, v in self.joints]
+        self.spread_motion_joints = [(n, lo, hi, v*speed_scale)
+                                    for n, lo, hi, v in self.spread_joints]
         self.alpha = float(self.get_parameter('alpha').value)
         self.stale_timeout = float(self.get_parameter('stale_timeout').value)
         if not 0.0 < self.alpha <= 1.0:
@@ -85,6 +95,7 @@ class WebcamReceiver(Node):
         self.lock = threading.Lock()
         self.stop = threading.Event()
         self.connection = None
+        self.configure_extra()
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
             self.server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -102,6 +113,28 @@ class WebcamReceiver(Node):
         self.worker.start()
         self.get_logger().info(f'Listening on {self.server.getsockname()} (14 CSV degrees)')
 
+    def configure_extra(self):
+        """Extension point; the finger-only receiver publishes no root transform."""
+
+    def reset_extra(self):
+        """Reset optional state on client changes, while holding the state lock."""
+
+    def parse_sample(self, line):
+        """Preserve the legacy 14-angle CSV parser."""
+        return parse_angles(line, self.joints)
+
+    def apply_sample(self, sample):
+        """Atomically replace the latest finger target."""
+        self.targets = sample
+        self.spread_targets = [0.0]*len(SPREAD_NAMES)
+        self.last_sample = time.monotonic()
+
+    def update_extra(self, now, dt):
+        """Update optional state at the publishing rate, under the state lock."""
+
+    def publish_extra(self, stamp):
+        """Publish optional state with the joint-state timestamp."""
+
     def receive_angles(self):
         """Accept successive clients; malformed frames never replace valid targets."""
         while not self.stop.is_set():
@@ -115,6 +148,7 @@ class WebcamReceiver(Node):
                 self.connection = connection
                 self.connected = True
                 self.last_sample = None
+                self.reset_extra()
             self.get_logger().info(f'Connected: {address}')
             try:
                 with connection:
@@ -129,12 +163,11 @@ class WebcamReceiver(Node):
                             break
                         for line in lines.feed(data):
                             try:
-                                targets = parse_angles(line, self.joints)
+                                sample = self.parse_sample(line)
                             except (ValueError, UnicodeError):
                                 continue
                             with self.lock:
-                                self.targets = targets
-                                self.last_sample = time.monotonic()
+                                self.apply_sample(sample)
             except OSError as error:
                 if not self.stop.is_set():
                     self.get_logger().warning(f'TCP connection ended: {error}')
@@ -142,6 +175,7 @@ class WebcamReceiver(Node):
                 with self.lock:
                     self.connected = False
                     self.connection = None
+                    self.reset_extra()
                 if not self.stop.is_set():
                     self.get_logger().warning('Client disconnected; holding pose')
 
@@ -155,16 +189,20 @@ class WebcamReceiver(Node):
                       and now - self.last_sample <= self.stale_timeout)
             if active:
                 self.positions = advance(
-                    self.positions, self.targets, self.joints, self.alpha, dt)
+                    self.positions, self.targets, self.motion_joints, self.alpha, dt)
+                self.spread_positions = advance(
+                    self.spread_positions, self.spread_targets, self.spread_motion_joints, self.alpha, dt)
             if not active and not self.holding:
                 self.get_logger().warning('Input unavailable or stale; holding pose')
             self.holding = not active
-            positions = list(self.positions)
+            self.update_extra(now, dt)
+            positions = list(self.positions) + list(self.spread_positions)
         msg = JointState()
         msg.header.stamp = self.get_clock().now().to_msg()
-        msg.name = list(JOINT_NAMES)
+        msg.name = list(JOINT_NAMES + SPREAD_NAMES)
         msg.position = positions
         self.publisher.publish(msg)
+        self.publish_extra(msg.header.stamp)
 
     def destroy_node(self):
         """Unblock socket reads and join the receiver before destroying ROS entities."""

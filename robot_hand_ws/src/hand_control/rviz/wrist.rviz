@@ -1,0 +1,51 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Class: ""
+  Enabled: true
+  Name: root
+  Value: true
+  Global Options:
+    Fixed Frame: hand_base
+    Background Color: 48; 48; 48
+  Displays:
+    - Class: rviz_default_plugins/RobotModel
+      Name: Hand
+      Enabled: true
+      Value: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+        Durability Policy: Transient Local
+        Reliability Policy: Reliable
+      Visual Enabled: true
+      Collision Enabled: false
+      Alpha: 1
+    - Class: rviz_default_plugins/TF
+      Name: Wrist Frames
+      Enabled: true
+      Value: true
+      Marker Scale: 0.08
+      Show Names: true
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Near Clip Distance: 0.001
+      Target Frame: <Fixed Frame>
+      Distance: 0.45
+      Pitch: 0.4
+      Yaw: 1.2
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0.07
+Window Geometry:
+  Width: 1000
+  Height: 750

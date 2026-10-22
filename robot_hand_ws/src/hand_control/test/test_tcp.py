@@ -44,3 +44,17 @@ def test_conversion_clamping_and_smoothing():
         assert all(abs(p - old) <= 0.05 + 1e-12
                    for p, old in zip(positions, previous))
     assert positions == pytest.approx(targets, abs=1e-5)
+
+
+def test_responsive_visualization_reduces_step_delay():
+    """Faster visual settings reduce lag while retaining explicit speed bounds."""
+    target = [1.0]*14
+    old = new = [0.0]*14
+    faster = [(name, lo, hi, speed*2.5) for name, lo, hi, speed in JOINTS]
+    for _ in range(10):
+        previous = new
+        old = advance(old, target, JOINTS, .2, .05)
+        new = advance(new, target, faster, .55, .05)
+        assert all(abs(a-b) <= .125+1e-12 for a, b in zip(new, previous))
+    assert new[0] > .95
+    assert old[0] <= .5+1e-12

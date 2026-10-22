@@ -24,6 +24,7 @@ setup(
     entry_points={
         'console_scripts': [
             'webcam_receiver = hand_control.webcam_receiver:main',
+            'wrist_receiver = hand_control.wrist_receiver:main',
             'test_joint_publisher = hand_control.test_joint_publisher:main',
         ],
     },

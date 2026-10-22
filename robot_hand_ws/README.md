@@ -109,3 +109,45 @@ python3 src/hand_control/test/tcp_smoke.py
 This smoke test temporarily uses ROS domain 89 and port 8766; stop any hand
 receiver first. It tests fragmented/coalesced and malformed frames, buffer
 recovery, stale/disconnect holds, reconnection, and clean shutdown.
+
+## Wrist orientation
+
+The optional wrist receiver adds a dynamic `hand_base -> palm` transform while
+retaining the 14 finger joints and unchanged URDF. After rebuilding:
+
+```bash
+ros2 launch hand_control wrist_visualize.launch.py rviz:=false
+python3 src/hand_control/test/tcp_smoke.py --wrist
+```
+
+Both commands run without RViz. Use the Windows sender's `--wrist` flag for
+version-2 JSON; legacy CSV remains accepted and holds the wrist. Stop other
+hand receivers first. See [the webcam guide](../robot_webcam/README_HAND.md#wrist-orientation-optional)
+for neutral capture, coordinate conventions, limitations, and tuning parameters.
+
+## Finger spread and palm shape
+
+The hand now has 18 movable joints: 14 existing flexion joints plus four
+`*_spread` joints at the finger knuckles. The wrist sender supplies optional
+`finger_spread_deg` in v2 JSON; CSV stays at 14 values and uses zero spread.
+The blue, tapered palm mesh with bevelled edges replaces the box and is installed with the description
+package. Rebuild and restart the launch to load the new model. See the webcam
+guide's finger spread section for limits, retargeting, and remaining degrees
+of freedom.
+
+The latest model also includes `thumb_spread` (19 movable joints total).
+The wrist sender supplies optional `thumb_spread_deg` for sideways opening,
+independently of `thumb_base` and `thumb_ip`. Rebuild and restart the hand
+launch after this model update.
+
+The blue palm now also carries a separate thenar (thumb-base) pad. The original
+palm mesh is unchanged. The thumb attaches at the pad's outer end; proximal
+and distal widths are 22 mm and 20 mm. The pad generator is included as
+`meshes/generate_thumb_pad.py` in the description package. Joint names,
+tracking conventions, and motion limits are unchanged.
+
+The current thumb base is articulated by `thumb_opposition` (20 joints total).
+It carries the blue `thenar` link, `thumb_spread`, and both thumb bend joints.
+The original main palm mesh and neutral pad/thumb placement are preserved.
+The wrist sender supplies optional `thumb_opposition_deg`; the preview calls
+this `Thumb inward`. See the webcam guide for the geometric approximation.
